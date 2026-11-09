@@ -146,13 +146,41 @@ async function uploadImages() {
   const count = await ev(`document.body.innerText.match(/\\d+\\/18/)?.[0] || 'unknown'`);
   log('图片已上传，页面显示:', count);
   if (count === 'unknown') throw new Error('上传后未见图片计数，可能未成功');
+  await dismissPopups();
+}
+
+/** 关闭小红书新手引导/提示弹窗（"我知道了"之类），避免抢占焦点拦截后续回车 */
+async function dismissPopups() {
+  for (let i = 0; i < 3; i++) {   // 可能连续弹多个
+    const r = await ev(`(()=>{
+      const btns=[...document.querySelectorAll('button,div[role=button]')].filter(b=>{
+        const t=(b.textContent||'').trim();
+        if(!/^(我知道了|知道了|下次再说|不再提示|关闭|跳过)$/.test(t)) return false;
+        // ⚠️ 不能用 offsetParent 判断可见性：position:fixed 弹窗里它是 null
+        const rc=b.getBoundingClientRect();
+        return rc.width>0 && rc.height>0;
+      });
+      if(!btns.length) return 'none';
+      btns[btns.length-1].click();
+      return btns[btns.length-1].textContent.trim();
+    })()`);
+    if (r === 'none') return;
+    log('已关闭弹窗:', r);
+    await sleep(800);
+  }
 }
 
 async function fillTitle() {
-  await ev(`document.querySelector('input[placeholder*="标题"]').focus()`);
+  const el = `document.querySelector('input[placeholder*="标题"]')`;
+  await ev(`${el}.focus()`);
+  // 清空已有内容（防草稿恢复导致追加）
+  await ev(`(()=>{const e=${el};e.select();return 'selected';})()`);
+  await cdp.send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Backspace', code: 'Backspace', windowsVirtualKeyCode: 8, nativeVirtualKeyCode: 8 }, sessionId);
+  await cdp.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Backspace', code: 'Backspace', windowsVirtualKeyCode: 8, nativeVirtualKeyCode: 8 }, sessionId);
+  await sleep(300);
   await cdp.send('Input.insertText', { text: TITLE }, sessionId);
   await sleep(800);
-  const got = await ev(`document.querySelector('input[placeholder*="标题"]').value`);
+  const got = await ev(`${el}.value`);
   if (got !== TITLE) throw new Error(`标题未填入正确，实际: ${got}`);
   log('标题已填:', got);
 }
@@ -166,6 +194,11 @@ const pressEnter = async () => {
 async function fillBody() {
   if (!BODY) { log('未提供正文，跳过'); return; }
   await ev(`document.querySelector('[contenteditable=true]').focus()`);
+  // 清空已有内容（防草稿恢复导致追加）
+  await ev(`(()=>{const el=document.querySelector('[contenteditable=true]');getSelection().selectAllChildren(el);})()`);
+  await cdp.send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Backspace', code: 'Backspace', windowsVirtualKeyCode: 8, nativeVirtualKeyCode: 8 }, sessionId);
+  await cdp.send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Backspace', code: 'Backspace', windowsVirtualKeyCode: 8, nativeVirtualKeyCode: 8 }, sessionId);
+  await sleep(400);
   const paras = BODY.split(/\n\s*\n/).map(s => s.trim()).filter(Boolean);
   for (let i = 0; i < paras.length; i++) {
     await cdp.send('Input.insertText', { text: paras[i] }, sessionId);
@@ -179,6 +212,7 @@ async function fillBody() {
 
 async function addTags() {
   if (!TAGS.length) return;
+  await dismissPopups();
   // 光标移到末尾
   await ev(`(()=>{const el=document.querySelector('[contenteditable=true]');el.focus();
     const r=document.createRange();r.selectNodeContents(el);r.collapse(false);
@@ -186,15 +220,24 @@ async function addTags() {
   await pressEnter();
 
   for (const tag of TAGS) {
+    await dismissPopups();          // 回车选中前必须确保没有弹窗抢焦点
     await cdp.send('Input.insertText', { text: ' #' }, sessionId);
     await sleep(450);
     await cdp.send('Input.insertText', { text: tag }, sessionId);
     await sleep(2000);
+    await dismissPopups();
     await pressEnter();          // 回车选中下拉第一项，勿按方向键
     await sleep(1200);
     const tail = (await ev(`document.querySelector('[contenteditable=true]').innerText`)) || '';
     if (tail.includes('[话题]#')) log(`话题 ✅ ${tag}`);
-    else log(`话题 ⚠️ ${tag} 可能未选中，请检查预览`);
+    else {
+      log(`话题 ⚠️ ${tag} 首次未选中，重试一次`);
+      await dismissPopups();
+      await pressEnter();
+      await sleep(1200);
+      const tail2 = (await ev(`document.querySelector('[contenteditable=true]').innerText`)) || '';
+      log(tail2.includes('[话题]#') ? `话题 ✅ ${tag}（重试成功）` : `话题 ⚠️ ${tag} 仍未选中，请人工检查预览`);
+    }
   }
 }
 

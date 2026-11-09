@@ -150,3 +150,21 @@ document.body.innerText.includes('你的用户名')   // true = 登录着
 | macOS 辅助功能权限拿不到 | `osascript` 控制 System Events / Chrome 均报 -10004，GUI 模拟路线不可用 |
 | 隔离 profile 的 Chrome 起不来 | 沙箱下 `sandbox initialization failed`，且 GPU 进程崩溃 |
 | BrowserSkill 扩展在此页面失效 | 页面频繁重建 DOM，写操作上下文一次性失效 |
+
+## ⚠️ 高频坑：新手引导弹窗挡住话题选择（第 ⑦ 坑）
+
+**症状**：话题输入后下拉正常弹出，但按 Enter 不选中，话题变成死文本。下次运行又正常。
+
+**根因**：上传图片后小红书弹"图片可以编辑啦"引导（`feature-guide` 弹窗），抢占焦点。它只在 profile 首次上传时出现，所以"上次成功这次失败"极具迷惑性。
+
+**修复**：发布流程每个关键步骤前调用 `dismissPopups()`。原实现用 `b.offsetParent` 判断可见性——**position:fixed 弹窗里 offsetParent 是 null**，导致永远匹配不到。已改为 `getBoundingClientRect().width>0`。
+
+**教训**：判断元素可见性永远用 `getBoundingClientRect`，不要用 `offsetParent`。
+
+## ⚠️ 草稿恢复导致内容追加（第 ⑧ 坑）
+
+**症状**：标题/正文填入后变成"旧内容+新内容"拼接。
+
+**根因**：小红书发布页会恢复上次未发布的草稿，`insertText` 是追加不是覆盖。
+
+**修复**：`fillTitle` 用 `e.select()` 全选后 Backspace；`fillBody` 用 `getSelection().selectAllChildren` + Backspace。填入前先清空。
