@@ -117,6 +117,22 @@ document.querySelectorAll('input[type=file]').length
 
 这是编辑器的时间戳，**不代表已发布**。判断发布成功只看 URL 是否含 `/publish/success`。
 
+### `/json/list` 里的 URL 显示 login，但实际是登录态
+
+标签页 URL 有历史残留：打开时经过 login 页再跳转，`/json/list` 记录的是**最初 URL**。实际登录态要以 DOM 为准：
+
+```js
+document.body.innerText.includes('你的用户名')   // true = 登录着
+```
+
+或者直接导航到目标页，看是否被踢回 `/login`。不要看到 URL 含 login 就断定掉线。
+
+### 笔记管理页 innerText 拿不到笔记条目
+
+列表是异步渲染的。导航后**至少等 6 秒**再读。另外页面用 tab（全部/已发布/审核中/未通过）切换视图，注意当前 tab；`全部 N` 的 N 是笔记总数。
+
+数据解析时数字列的顺序是：浏览 · 评论 · 点赞 · 收藏 · 分享。
+
 ### 发布后想确认结果
 
 去 `creator.xiaohongshu.com/new/note-manager`，看列表第一条的状态：

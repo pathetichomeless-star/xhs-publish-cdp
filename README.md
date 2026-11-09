@@ -73,6 +73,15 @@ node scripts/publish.mjs ... --publish
 | `--preview` | 预览截图保存路径 |
 | `--publish` | 真正点击发布；不传则停在预览 |
 
+### 发布后监控数据（只读）
+
+```bash
+node scripts/read-stats.mjs           # 人读格式
+node scripts/read-stats.mjs --json    # 机器格式，适合接定时任务
+```
+
+输出笔记管理页的全部笔记：审核状态计数、每篇的浏览/评论/点赞/收藏/分享。纯只读，适合配 cron/launchd 定时跑。
+
 ## 执行流程
 
 1. 连 CDP → 找小红书标签页（没有就新建）

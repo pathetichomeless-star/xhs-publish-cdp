@@ -46,6 +46,8 @@ node -e "require('http').get({host:'127.0.0.1',port:9333,path:'/json/version'},r
 
 ## 用法
 
+### 发布
+
 ```bash
 node scripts/publish.mjs \
   --title "ChatGPT 用不了？先别急着注册！" \
@@ -57,6 +59,15 @@ node scripts/publish.mjs \
 ```
 
 不加 `--publish` 时只填内容并截图，不点发布（**dry-run，推荐先跑一次**）。
+
+### 发布后监控数据（只读）
+
+```bash
+node scripts/read-stats.mjs           # 人读格式
+node scripts/read-stats.mjs --json    # 机器格式
+```
+
+读取笔记管理页：审核状态（全部/已发布/审核中/未通过计数）、每篇笔记的浏览/评论/点赞/收藏/分享。**只读操作，不点任何按钮**。
 
 | 参数 | 说明 |
 |---|---|
